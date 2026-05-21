@@ -54,6 +54,32 @@ def _etrade_dev_flag() -> bool:
     return os.environ.get("ETRADE_MODE", "prod").lower() == "sandbox"
 
 
+# Per-request timeout in seconds. `requests` defaults to None (wait forever);
+# pyetrade doesn't expose timeouts, so we monkey-patch the session.request
+# method. Override via env var if needed (e.g. for slow corporate proxies).
+_REQUEST_TIMEOUT = float(os.environ.get("ETRADE_REQUEST_TIMEOUT", "30"))
+
+
+def _apply_request_timeout(api: Any) -> None:
+    """Wrap `api.session.request` so every HTTP call has a hard timeout.
+
+    pyetrade builds on rauth.OAuth1Session → requests.Session. Without a
+    timeout, a hung TCP connection (E*TRADE sandbox is unreliable) blocks
+    forever. We override the bound `request` method so all subsequent
+    .get/.post/.put calls inherit the timeout.
+    """
+    session = getattr(api, "session", None)
+    if session is None:
+        return
+    original = session.request
+
+    def _request_with_timeout(method: str, url: str, **kwargs: Any) -> Any:
+        kwargs.setdefault("timeout", _REQUEST_TIMEOUT)
+        return original(method, url, **kwargs)
+
+    session.request = _request_with_timeout  # type: ignore[assignment]
+
+
 class ETradeClient:
     def __init__(self) -> None:
         creds = get_credentials()
@@ -64,22 +90,26 @@ class ETradeClient:
         self._dev = _etrade_dev_flag()
 
     def _accounts_api(self) -> pyetrade.ETradeAccounts:
-        return pyetrade.ETradeAccounts(
+        api = pyetrade.ETradeAccounts(
             self._consumer_key,
             self._consumer_secret,
             self._oauth_token,
             self._oauth_token_secret,
             dev=self._dev,
         )
+        _apply_request_timeout(api)
+        return api
 
     def _market_api(self) -> pyetrade.ETradeMarket:
-        return pyetrade.ETradeMarket(
+        api = pyetrade.ETradeMarket(
             self._consumer_key,
             self._consumer_secret,
             self._oauth_token,
             self._oauth_token_secret,
             dev=self._dev,
         )
+        _apply_request_timeout(api)
+        return api
 
     def _list_brokerage_accounts(self) -> list[dict[str, Any]]:
         api = self._accounts_api()
