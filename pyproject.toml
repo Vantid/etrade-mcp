@@ -1,0 +1,19 @@
+[project]
+name = "etrade-mcp"
+version = "0.1.0"
+description = "E*TRADE MCP server for Claude Desktop/Code"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]",
+    "pyetrade>=2.1.1",
+    "rauth==0.7.3",
+    "pydantic>=2.11.0",
+    "keyring>=25.0.0",
+]
+
+[project.scripts]
+etrade-auth = "etrade_mcp.auth_cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
