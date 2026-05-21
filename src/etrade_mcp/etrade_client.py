@@ -254,11 +254,15 @@ class ETradeClient:
             acct_key = acct["accountIdKey"]
             acct_name = acct.get("accountDesc", acct_key)
             try:
+                # pyetrade names this `real_time` (translated to E*TRADE's
+                # `realTimeNAV=true` query param on the wire). The upstream
+                # snapshot called it `real_time_nav` which doesn't exist —
+                # the kwarg was rejected and the balance silently dropped.
                 resp = api.get_account_balance(
                     account_id_key=acct_key,
                     account_type=acct.get("accountType", ""),
                     resp_format="json",
-                    real_time_nav=True,
+                    real_time=True,
                 )
                 balance_data = resp["BalanceResponse"]
                 balance = EtradeBalance.model_validate(balance_data)
