@@ -92,6 +92,44 @@ LLM:    [calls etrade.get_transactions_for_import]
         update_asset with status="expired"/"exercised".
 ```
 
+## Ad-hoc resync after a gap
+
+If you've been away for a while and want the LLM to "import everything I'm
+missing," the right pattern is:
+
+1. **Ask WealthWatcher for the watermark.** WealthWatcher exposes a
+   `get_latest_transaction_date` MCP tool that returns the most recent
+   transaction date for a given account / asset type / source. That's
+   the only trustworthy "what's already synced" signal — etrade-mcp is
+   intentionally stateless.
+2. **Fetch from etrade-mcp starting at that date** (or one day earlier,
+   for safety overlap).
+3. **Pipe into `import_brokerage_transactions`.** WealthWatcher's
+   importer dedups by `(symbol, date, amount)` and `osiKey` for options,
+   so any overlap from the safety window is skipped cleanly.
+
+Example conversation:
+
+```
+You:    Import any missing E*TRADE transactions into WealthWatcher.
+LLM:    [calls wealthwatcher.get_latest_transaction_date(
+         account="E*TRADE", source="import")]
+        → { latestDate: "2026-05-18", count: 47, ... }
+        [calls etrade.get_transactions_for_import(
+         start_date="2026-05-17")]  # 1-day overlap for safety
+        → { rows: [9 new], terminal_events: [1], errors: [] }
+        [calls wealthwatcher.import_brokerage_transactions(...)]
+        → 9 new transactions imported (3 skipped as duplicates).
+        Routed 1 option expiration via update_asset.
+```
+
+Why this works without per-account state on the E\*TRADE side:
+- WealthWatcher's DB is the only place that knows what's been imported.
+- The importer's dedup is the safety net — over-fetching is cheap and
+  correct.
+- No risk of "I told etrade-mcp I synced through Tuesday but the
+  WealthWatcher import actually failed" state drift.
+
 ## Daily cron sync
 
 You can run a daily sync from cron, but there's one constraint to know:
