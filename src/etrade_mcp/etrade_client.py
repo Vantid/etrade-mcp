@@ -132,10 +132,19 @@ class ETradeClient:
         token_param_name: str,
         **kwargs: Any,
     ) -> Iterator[Any]:
+        # E*TRADE signals "no more pages" with either an absent marker
+        # OR an empty-string marker — `if not next_token` catches both.
+        # The original `is None` check missed the empty-string case and
+        # spun forever (observed against sandbox: same first page returned
+        # repeatedly with `marker=` in the URL).
         token: Any = None
         while True:
-            kwargs[token_param_name] = token
-            response = api_func(**kwargs)
+            # Only attach the token when we actually have one — passing
+            # `marker=""` makes E*TRADE 400.
+            call_kwargs = dict(kwargs)
+            if token:
+                call_kwargs[token_param_name] = token
+            response = api_func(**call_kwargs)
             data: Any = response
             for key in result_path:
                 data = data[key]
@@ -146,7 +155,7 @@ class ETradeClient:
 
             yield data
 
-            if next_token is None:
+            if not next_token:
                 break
             token = next_token
 
