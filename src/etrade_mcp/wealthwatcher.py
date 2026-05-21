@@ -23,9 +23,6 @@ WealthWatcher conventions honored here:
 """
 from __future__ import annotations
 
-from typing import Optional
-
-
 # E*TRADE transactionType strings → WealthWatcher tradeType.
 # Anything not in this map (and not in the terminal set) is dropped as
 # "not a tradeable event" (Transfer, Fee, Bill Payment, etc.).
@@ -51,7 +48,7 @@ _TERMINAL_STATUS_MAP = {
 }
 
 
-def map_position_to_import_row(pos: dict) -> Optional[dict]:
+def map_position_to_import_row(pos: dict) -> dict | None:
     """Convert a flattened E*TRADE Position dict to a WW import row.
 
     Returns None if the position should be skipped (zero quantity, missing
@@ -146,7 +143,7 @@ def _map_option_position(
     }
 
 
-def map_transaction_to_import_row(txn: dict) -> Optional[dict]:
+def map_transaction_to_import_row(txn: dict) -> dict | None:
     """Convert a flattened E*TRADE Transaction dict to a WW import row.
 
     Returns None when the transaction isn't a tradeable buy/sell — caller
@@ -197,7 +194,7 @@ def map_transaction_to_import_row(txn: dict) -> Optional[dict]:
     return base
 
 
-def split_terminal_events(txn: dict) -> Optional[dict]:
+def split_terminal_events(txn: dict) -> dict | None:
     """If `txn` is an Option Expiration/Assignment/Exercise, return a
     terminal-event dict for the LLM to route to `update_asset`. Otherwise
     return None and let the caller treat it as a normal buy/sell."""

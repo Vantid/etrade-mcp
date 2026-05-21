@@ -6,12 +6,11 @@ can attach computed fields (account_id_key, account_name) after parsing.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import BaseModel, Field, computed_field
 from pydantic.aliases import AliasPath
 from pydantic.functional_validators import BeforeValidator
-
 
 # ---------------------------------------------------------------------------
 # Shared coercers
@@ -21,7 +20,7 @@ def _convert_ms_to_datetime(v: int | str) -> datetime:
     return datetime.fromtimestamp(int(v) / 1000)
 
 
-def _coerce_str(v: object) -> Optional[str]:
+def _coerce_str(v: object) -> str | None:
     return str(v) if v is not None else None
 
 
@@ -37,24 +36,24 @@ CoercedStr = Annotated[str, BeforeValidator(_coerce_str)]
 class Product(BaseModel, frozen=True):
     """Subset of E*TRADE's Product block. Same shape for positions and txns."""
 
-    callPut: Optional[str] = None
-    expiryDay: Optional[int] = Field(default=None, exclude=True)
-    expiryMonth: Optional[int] = Field(default=None, exclude=True)
-    expiryYear: Optional[int] = Field(default=None, exclude=True)
-    securityType: Optional[str] = None
-    strikePrice: Optional[float] = None
-    symbol: Optional[str] = None
+    callPut: str | None = None
+    expiryDay: int | None = Field(default=None, exclude=True)
+    expiryMonth: int | None = Field(default=None, exclude=True)
+    expiryYear: int | None = Field(default=None, exclude=True)
+    securityType: str | None = None
+    strikePrice: float | None = None
+    symbol: str | None = None
 
 
 class ProductMixin:
     """Adds `expiry_date` and `osi_key` computed fields. Requires `product` attr."""
 
     if TYPE_CHECKING:
-        product: Optional[Product]
+        product: Product | None
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def expiry_date(self) -> Optional[datetime]:
+    def expiry_date(self) -> datetime | None:
         p = self.product
         if p is None or p.securityType != "OPTN":
             return None
@@ -66,7 +65,7 @@ class ProductMixin:
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def osi_key(self) -> Optional[str]:
+    def osi_key(self) -> str | None:
         """Industry-standard OSI contract identifier.
 
         Format: `{ROOT}--{YYMMDD}{C|P}{strike×1000, 8 digits zero-padded}`.
@@ -109,7 +108,7 @@ class AccountTagged(BaseModel, frozen=True):
 
 
 class EtradeTransaction(AccountTagged, ProductMixin, frozen=True):
-    product: Optional[Product] = Field(
+    product: Product | None = Field(
         default=None,
         validation_alias=AliasPath("brokerage", "product"),
     )
@@ -118,13 +117,13 @@ class EtradeTransaction(AccountTagged, ProductMixin, frozen=True):
     amount: float
     description: str
     transaction_type: str = Field(validation_alias="transactionType")
-    quantity: Optional[float] = Field(
+    quantity: float | None = Field(
         default=None, validation_alias=AliasPath("brokerage", "quantity")
     )
-    price: Optional[float] = Field(
+    price: float | None = Field(
         default=None, validation_alias=AliasPath("brokerage", "price")
     )
-    fee: Optional[float] = Field(
+    fee: float | None = Field(
         default=None, validation_alias=AliasPath("brokerage", "fee")
     )
 
@@ -148,36 +147,36 @@ class CompleteBlock(BaseModel, frozen=True):
     values without a second API call.
     """
 
-    optionMultiplier: Optional[int] = None
-    ivPct: Optional[float] = None
-    delta: Optional[float] = None
-    gamma: Optional[float] = None
-    theta: Optional[float] = None
-    vega: Optional[float] = None
-    rho: Optional[float] = None
-    intrinsicValue: Optional[float] = None
-    daysToExpiration: Optional[int] = None
-    lastTrade: Optional[float] = None
-    bid: Optional[float] = None
-    ask: Optional[float] = None
-    previousClose: Optional[float] = None
-    currency: Optional[str] = None
+    optionMultiplier: int | None = None
+    ivPct: float | None = None
+    delta: float | None = None
+    gamma: float | None = None
+    theta: float | None = None
+    vega: float | None = None
+    rho: float | None = None
+    intrinsicValue: float | None = None
+    daysToExpiration: int | None = None
+    lastTrade: float | None = None
+    bid: float | None = None
+    ask: float | None = None
+    previousClose: float | None = None
+    currency: str | None = None
 
 
 class EtradePosition(AccountTagged, ProductMixin, frozen=True):
-    product: Optional[Product] = Field(default=None, validation_alias="Product")
-    complete: Optional[CompleteBlock] = Field(default=None, validation_alias="Complete")
+    product: Product | None = Field(default=None, validation_alias="Product")
+    complete: CompleteBlock | None = Field(default=None, validation_alias="Complete")
     position_id: CoercedStr = Field(validation_alias="positionId")
-    position_type: Optional[str] = Field(default=None, validation_alias="positionType")
+    position_type: str | None = Field(default=None, validation_alias="positionType")
     """LONG or SHORT (E*TRADE's casing)."""
-    date_acquired: Optional[TimestampType] = Field(
+    date_acquired: TimestampType | None = Field(
         default=None, validation_alias="dateAcquired"
     )
     quantity: float
     """Signed quantity — negative for short positions."""
-    price_paid: Optional[float] = Field(default=None, validation_alias="pricePaid")
+    price_paid: float | None = Field(default=None, validation_alias="pricePaid")
     """Per-share cost basis from E*TRADE. May be 0 in sandbox; trust holdings instead."""
-    cost_per_share: Optional[float] = Field(
+    cost_per_share: float | None = Field(
         default=None, validation_alias="costPerShare"
     )
     market_value: float = Field(validation_alias="marketValue")
@@ -198,7 +197,7 @@ class EtradePosition(AccountTagged, ProductMixin, frozen=True):
 
 class EtradeLot(AccountTagged, frozen=True):
     symbol: str = ""
-    security_type: Optional[str] = None
+    security_type: str | None = None
     """EQ, OPTN, MF — preserved so callers can filter as they need."""
     position_id: CoercedStr = Field(validation_alias="positionId")
     position_lot_id: CoercedStr = Field(validation_alias="positionLotId")
@@ -224,15 +223,15 @@ class EtradeBalance(AccountTagged, frozen=True):
     total_account_value: float = Field(
         validation_alias=AliasPath("Computed", "RealTimeValues", "totalAccountValue")
     )
-    margin_buying_power: Optional[float] = Field(
+    margin_buying_power: float | None = Field(
         default=None,
         validation_alias=AliasPath("Computed", "marginBuyingPower"),
     )
-    cash_buying_power: Optional[float] = Field(
+    cash_buying_power: float | None = Field(
         default=None,
         validation_alias=AliasPath("Computed", "cashBuyingPower"),
     )
-    net_cash: Optional[float] = Field(
+    net_cash: float | None = Field(
         default=None,
         validation_alias=AliasPath("Computed", "RealTimeValues", "netCash"),
     )
@@ -248,38 +247,38 @@ class EtradeBalance(AccountTagged, frozen=True):
 
 class EtradeQuote(BaseModel, frozen=True):
     symbol: str = Field(validation_alias=AliasPath("Product", "symbol"))
-    security_type: Optional[str] = Field(
+    security_type: str | None = Field(
         default=None,
         validation_alias=AliasPath("Product", "securityType"),
     )
-    last_trade: Optional[float] = Field(
+    last_trade: float | None = Field(
         default=None, validation_alias=AliasPath("All", "lastTrade")
     )
-    bid: Optional[float] = Field(
+    bid: float | None = Field(
         default=None, validation_alias=AliasPath("All", "bid")
     )
-    ask: Optional[float] = Field(
+    ask: float | None = Field(
         default=None, validation_alias=AliasPath("All", "ask")
     )
-    change_close: Optional[float] = Field(
+    change_close: float | None = Field(
         default=None, validation_alias=AliasPath("All", "changeClose")
     )
-    previous_close: Optional[float] = Field(
+    previous_close: float | None = Field(
         default=None, validation_alias=AliasPath("All", "previousClose")
     )
-    high: Optional[float] = Field(
+    high: float | None = Field(
         default=None, validation_alias=AliasPath("All", "high")
     )
-    low: Optional[float] = Field(
+    low: float | None = Field(
         default=None, validation_alias=AliasPath("All", "low")
     )
-    total_volume: Optional[int] = Field(
+    total_volume: int | None = Field(
         default=None, validation_alias=AliasPath("All", "totalVolume")
     )
-    high_52: Optional[float] = Field(
+    high_52: float | None = Field(
         default=None, validation_alias=AliasPath("All", "high52")
     )
-    low_52: Optional[float] = Field(
+    low_52: float | None = Field(
         default=None, validation_alias=AliasPath("All", "low52")
     )
 

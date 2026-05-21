@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import pytest
-
 from etrade_mcp.models import (
     EtradeBalance,
     EtradeLot,
@@ -12,7 +10,6 @@ from etrade_mcp.models import (
     EtradeQuote,
     EtradeTransaction,
 )
-
 
 # ---------------------------------------------------------------------------
 # OSI key — the bug fix that motivated this rewrite (was three dashes,

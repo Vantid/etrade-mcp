@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Callable, Iterator
+from typing import Any
 
 import pyetrade
 
