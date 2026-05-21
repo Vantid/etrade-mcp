@@ -1,7 +1,7 @@
-"""Tests for E*TRADE → WealthWatcher import-row mappings."""
+"""Tests for E*TRADE → Vantid import-row mappings."""
 from __future__ import annotations
 
-from etrade_mcp.wealthwatcher import (
+from etrade_mcp.vantid import (
     map_position_to_import_row,
     map_transaction_to_import_row,
     split_terminal_events,

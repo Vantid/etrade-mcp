@@ -11,8 +11,8 @@ All notable changes to this project are documented here. Format follows
 First public release after a correctness + scope refactor.
 
 ### Added
-- WealthWatcher-shaped composite tools — output is pre-shaped for
-  WealthWatcher's `import_brokerage_transactions` MCP tool:
+- Vantid-shaped composite tools — output is pre-shaped for
+  Vantid's `import_brokerage_transactions` MCP tool:
   - `get_holdings_for_import` — current holdings as importable rows.
   - `get_transactions_for_import(start_date, end_date)` — transactions
     split into trade rows + terminal events.
@@ -26,7 +26,7 @@ First public release after a correctness + scope refactor.
 - IRAs now included in account scan (was BROKERAGE-only).
 - Per-row error envelope (`{rows: [...], errors: [...]}`) — failures
   surface in-band instead of being silently logged.
-- 29 unit tests (OSI keys, model parsing, WealthWatcher mapping).
+- 29 unit tests (OSI keys, model parsing, Vantid mapping).
 - Ruff lint + pytest configured in `pyproject.toml`.
 - GitHub Actions CI matrix (Python 3.11, 3.12).
 - MIT LICENSE, README, CHANGELOG, CONTRIBUTING.

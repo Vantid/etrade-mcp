@@ -3,7 +3,7 @@
 An [MCP server](https://modelcontextprotocol.io/) for E\*TRADE. Lets any
 MCP-capable agent (Claude Desktop, Claude Code, Cursor, etc.) read your
 brokerage data — positions, lots, transactions, balances, quotes — and
-optionally feed it into [WealthWatcher](https://vantid.money) via that
+optionally feed it into [Vantid](https://vantid.money) via that
 project's `import_brokerage_transactions` MCP tool.
 
 > **Read-only.** This server has no trading endpoints. It reads positions,
@@ -20,7 +20,7 @@ Two layers of tools:
 - `get_transactions(start_date, end_date)` — transactions in a date range
 - `get_quote(symbols)` — real-time quotes (stocks + options via OSI key)
 
-**WealthWatcher-shaped composites** — output is pre-shaped for WealthWatcher's
+**Vantid-shaped composites** — output is pre-shaped for Vantid's
 `import_brokerage_transactions` schema, so the LLM can pipe one tool's
 output directly into the next without translation:
 - `get_holdings_for_import` — current holdings as importable rows (one per
@@ -76,17 +76,17 @@ on macOS, or `.mcp.json` for Claude Code):
 
 Restart Claude. Ask: *"What are my E\*TRADE holdings?"*
 
-## Use with WealthWatcher
+## Use with Vantid
 
-If you also run the WealthWatcher MCP, point both at the same Claude
-session. The composite tools return rows pre-shaped for WealthWatcher's
+If you also run the Vantid MCP, point both at the same Claude
+session. The composite tools return rows pre-shaped for Vantid's
 `import_brokerage_transactions`:
 
 ```
-You:    Import my latest E*TRADE transactions into WealthWatcher.
+You:    Import my latest E*TRADE transactions into Vantid.
 LLM:    [calls etrade.get_transactions_for_import]
         [pipes 47 rows + 2 terminal events directly into
-         wealthwatcher.import_brokerage_transactions]
+         vantid.import_brokerage_transactions]
         Done — created 5 new assets, recorded 47 transactions.
         Routed 2 terminal events (1 expiration, 1 exercise) to
         update_asset with status="expired"/"exercised".
@@ -97,38 +97,38 @@ LLM:    [calls etrade.get_transactions_for_import]
 If you've been away for a while and want the LLM to "import everything I'm
 missing," the right pattern is:
 
-1. **Ask WealthWatcher for the watermark.** WealthWatcher exposes a
+1. **Ask Vantid for the watermark.** Vantid exposes a
    `get_latest_transaction_date` MCP tool that returns the most recent
    transaction date for a given account / asset type / source. That's
    the only trustworthy "what's already synced" signal — etrade-mcp is
    intentionally stateless.
 2. **Fetch from etrade-mcp starting at that date** (or one day earlier,
    for safety overlap).
-3. **Pipe into `import_brokerage_transactions`.** WealthWatcher's
+3. **Pipe into `import_brokerage_transactions`.** Vantid's
    importer dedups by `(symbol, date, amount)` and `osiKey` for options,
    so any overlap from the safety window is skipped cleanly.
 
 Example conversation:
 
 ```
-You:    Import any missing E*TRADE transactions into WealthWatcher.
-LLM:    [calls wealthwatcher.get_latest_transaction_date(
+You:    Import any missing E*TRADE transactions into Vantid.
+LLM:    [calls vantid.get_latest_transaction_date(
          account="E*TRADE", source="import")]
         → { latestDate: "2026-05-18", count: 47, ... }
         [calls etrade.get_transactions_for_import(
          start_date="2026-05-17")]  # 1-day overlap for safety
         → { rows: [9 new], terminal_events: [1], errors: [] }
-        [calls wealthwatcher.import_brokerage_transactions(...)]
+        [calls vantid.import_brokerage_transactions(...)]
         → 9 new transactions imported (3 skipped as duplicates).
         Routed 1 option expiration via update_asset.
 ```
 
 Why this works without per-account state on the E\*TRADE side:
-- WealthWatcher's DB is the only place that knows what's been imported.
+- Vantid's DB is the only place that knows what's been imported.
 - The importer's dedup is the safety net — over-fetching is cheap and
   correct.
 - No risk of "I told etrade-mcp I synced through Tuesday but the
-  WealthWatcher import actually failed" state drift.
+  Vantid import actually failed" state drift.
 
 ## Daily cron sync
 
@@ -145,7 +145,7 @@ That's fully automatable — see the keepalive script below.
 ### `scripts/daily_sync.py` — sync transactions
 
 Fetches transactions for a date range and prints a JSON envelope
-(`{rows, terminal_events, errors}`) ready to feed into WealthWatcher's
+(`{rows, terminal_events, errors}`) ready to feed into Vantid's
 `import_brokerage_transactions` MCP tool.
 
 ```bash
@@ -156,9 +156,9 @@ python scripts/daily_sync.py
 python scripts/daily_sync.py --since 2026-05-15 --until 2026-05-21 \
     --output /tmp/etrade-sync.json
 
-# Hand off to Claude Code for the WealthWatcher import:
+# Hand off to Claude Code for the Vantid import:
 python scripts/daily_sync.py | \
-    claude --print "Import this E*TRADE data into WealthWatcher."
+    claude --print "Import this E*TRADE data into Vantid."
 ```
 
 Bypasses the MCP protocol entirely — no LLM in the hot path. Returns

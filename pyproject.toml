@@ -1,12 +1,12 @@
 [project]
 name = "etrade-mcp"
 version = "0.2.0"
-description = "E*TRADE MCP server for Claude Desktop / Claude Code / any MCP client. Exposes positions, lots, transactions, balances, quotes — plus tools shaped for WealthWatcher's import schema."
+description = "E*TRADE MCP server for Claude Desktop / Claude Code / any MCP client. Exposes positions, lots, transactions, balances, quotes — plus tools shaped for Vantid's import schema."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Vantid" }]
 requires-python = ">=3.11"
-keywords = ["mcp", "etrade", "brokerage", "claude", "llm", "wealthwatcher"]
+keywords = ["mcp", "etrade", "brokerage", "claude", "llm", "vantid"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

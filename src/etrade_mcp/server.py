@@ -2,7 +2,7 @@
 
 Two layers:
 1. Raw E*TRADE reads (positions / lots / transactions / balances / quotes).
-2. WealthWatcher-shaped composites (`get_holdings_for_import`,
+2. Vantid-shaped composites (`get_holdings_for_import`,
    `get_transactions_for_import`, `get_daily_changes`).
 
 Every tool returns `{rows: [...], errors: [...]}` so failures are surfaced
@@ -13,7 +13,7 @@ from datetime import date
 from mcp.server.fastmcp import FastMCP
 
 from etrade_mcp.etrade_client import ETradeClient
-from etrade_mcp.wealthwatcher import (
+from etrade_mcp.vantid import (
     map_position_to_import_row,
     map_transaction_to_import_row,
     split_terminal_events,
@@ -88,8 +88,8 @@ def get_quote(symbols: list[str]) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# WealthWatcher-shaped composites — output is ready to pipe into
-# WealthWatcher's `import_brokerage_transactions` MCP tool.
+# Vantid-shaped composites — output is ready to pipe into
+# Vantid's `import_brokerage_transactions` MCP tool.
 # ---------------------------------------------------------------------------
 
 
@@ -162,10 +162,10 @@ def _build_transactions_for_import(
 
 @mcp.tool()
 def get_holdings_for_import() -> dict:
-    """Current holdings shaped as WealthWatcher import rows.
+    """Current holdings shaped as Vantid import rows.
 
     Returns one row per position (stock / mutual_fund / bond / option) in
-    the schema expected by WealthWatcher's `import_brokerage_transactions`
+    the schema expected by Vantid's `import_brokerage_transactions`
     MCP tool. Use this for initial portfolio import or full-resync. Rows
     include:
       - `type`: "stock" / "mutual_fund" / "bond" / "option"
@@ -189,16 +189,16 @@ def get_transactions_for_import(
     start_date: str | None = None,
     end_date: str | None = None,
 ) -> dict:
-    """Transactions shaped as WealthWatcher import rows + terminal events.
+    """Transactions shaped as Vantid import rows + terminal events.
 
     Splits the response into two streams:
       - `rows`: buy/sell transactions ready for
-        `import_brokerage_transactions` (shape matches WealthWatcher's
+        `import_brokerage_transactions` (shape matches Vantid's
         schema; tradeType auto-mapped from E*TRADE's transactionType).
       - `terminal_events`: option expirations / assignments / exercises
         — these should NOT go through `import_brokerage_transactions`;
         route them to `update_asset({details: {status: "expired" | "assigned"
-        | "exercised"}})` instead, per WealthWatcher's modeling rule.
+        | "exercised"}})` instead, per Vantid's modeling rule.
 
     Dates in YYYY-MM-DD. Defaults to YTD.
 

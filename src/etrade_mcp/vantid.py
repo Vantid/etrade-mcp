@@ -1,19 +1,19 @@
-"""WealthWatcher import-row schema mappings.
+"""Vantid import-row schema mappings.
 
-Source-of-truth for the shape WealthWatcher's MCP `import_brokerage_transactions`
-tool accepts (see https://github.com/aravindbharathy/wealthWatcher). Two
+Source-of-truth for the shape Vantid's MCP `import_brokerage_transactions`
+tool accepts (see https://github.com/aravindbharathy/vantid). Two
 mappings:
 
 - `map_position_to_import_row` — E*TRADE Position dict → WW row (current
-  holdings). Sets `snapshotShares` so WealthWatcher's importer treats the
+  holdings). Sets `snapshotShares` so Vantid's importer treats the
   broker as source-of-truth.
 - `map_transaction_to_import_row` — E*TRADE Transaction dict → WW row
   (buy/sell only).
 - `split_terminal_events` — Option Expiration / Assignment / Exercise are
-  NOT transactions in WealthWatcher's model. Returns a terminal-event dict
+  NOT transactions in Vantid's model. Returns a terminal-event dict
   for the LLM to route to `update_asset` instead.
 
-WealthWatcher conventions honored here:
+Vantid conventions honored here:
 - Top-level `ticker` is blank for options; identity in details JSON.
 - `osiKey` is the preferred dedup key for options.
 - Short positions: positive `quantity`, with `tradeType: "sell"` (sell-to-open).
@@ -23,7 +23,7 @@ WealthWatcher conventions honored here:
 """
 from __future__ import annotations
 
-# E*TRADE transactionType strings → WealthWatcher tradeType.
+# E*TRADE transactionType strings → Vantid tradeType.
 # Anything not in this map (and not in the terminal set) is dropped as
 # "not a tradeable event" (Transfer, Fee, Bill Payment, etc.).
 _TRADE_TYPE_MAP = {
@@ -37,7 +37,7 @@ _TRADE_TYPE_MAP = {
     "Sell": "sell",
 }
 
-# E*TRADE terminal-event transactionType strings → WealthWatcher status.
+# E*TRADE terminal-event transactionType strings → Vantid status.
 _TERMINAL_STATUS_MAP = {
     "Option Expiration": "expired",
     "Option Assignment": "assigned",
@@ -73,7 +73,7 @@ def map_position_to_import_row(pos: dict) -> dict | None:
     return None
 
 
-# E*TRADE securityType → WealthWatcher asset type.
+# E*TRADE securityType → Vantid asset type.
 # Money-market funds (MMF) and indices (INDX) map to "stock" because WW's
 # share-based importer handles them identically; MF maps to mutual_fund;
 # BOND maps to bond.
@@ -99,7 +99,7 @@ def _map_stock_position(
     abs_qty = abs(quantity)
     is_short = quantity < 0
     # E*TRADE sandbox often returns pricePaid=0. Fall back to market value /
-    # quantity. WealthWatcher will accept it and the user can correct it.
+    # quantity. Vantid will accept it and the user can correct it.
     price = pos.get("price_paid") or 0
     if price <= 0:
         mv = pos.get("market_value") or 0

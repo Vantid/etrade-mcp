@@ -31,7 +31,7 @@ ETRADE_MODE=sandbox uv run etrade-mcp    # run the server
 ```
 
 Sandbox cost-basis values are often synthetic ($0 or $1/share for
-positions worth much more). The mapper in `wealthwatcher.py` falls back
+positions worth much more). The mapper in `vantid.py` falls back
 to `marketValue / quantity` when `pricePaid` is 0 — be aware when
 testing against sandbox data.
 
@@ -48,9 +48,9 @@ testing against sandbox data.
 1. Add a method to `ETradeClient` in `etrade_client.py` returning a
    `ToolResult`.
 2. Register it in `server.py` as a `@mcp.tool()`-decorated function.
-3. If the tool produces WealthWatcher-shaped rows, factor the mapping
-   into `wealthwatcher.py` and add a test in
-   `tests/test_wealthwatcher_mapping.py`.
+3. If the tool produces Vantid-shaped rows, factor the mapping
+   into `vantid.py` and add a test in
+   `tests/test_vantid_mapping.py`.
 
 ## What to flag in PRs
 

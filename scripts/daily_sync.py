@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""Daily E*TRADE → WealthWatcher sync (cron-friendly).
+"""Daily E*TRADE → Vantid sync (cron-friendly).
 
 Fetches transactions since a given date and prints them as a JSON
 object — `{rows, terminal_events, errors}` — ready to feed into
-WealthWatcher's `import_brokerage_transactions` MCP tool.
+Vantid's `import_brokerage_transactions` MCP tool.
 
 Designed to run unattended from cron / launchd / systemd. Bypasses the
 MCP protocol entirely (talks straight to the E*TRADE client) so there's
@@ -22,7 +22,7 @@ Usage:
 
     # Hand off to a Claude Code headless run (sample consumer):
     python scripts/daily_sync.py | \\
-        claude --print "Import this E*TRADE data into WealthWatcher."
+        claude --print "Import this E*TRADE data into Vantid."
 
 Exit codes:
     0  — success (rows may still be empty)
@@ -43,7 +43,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from etrade_mcp.etrade_client import ETradeClient
-from etrade_mcp.wealthwatcher import (
+from etrade_mcp.vantid import (
     map_transaction_to_import_row,
     split_terminal_events,
 )
