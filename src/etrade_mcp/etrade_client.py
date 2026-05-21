@@ -169,13 +169,12 @@ class ETradeClient:
                         break
                     page_number = next_page
             except Exception as e:
-                err = str(e)
-                if _is_empty_response(err):
+                if _is_empty_response(e):
                     continue
                 out.errors.append({
                     "account_id_key": acct_key,
                     "context": "portfolio_fetch",
-                    "error": err,
+                    "error": str(e),
                 })
         return out
 
@@ -192,7 +191,7 @@ class ETradeClient:
                     resp_format="json",
                 )
             except Exception as e:
-                if _is_empty_response(str(e)):
+                if _is_empty_response(e):
                     continue
                 out.errors.append({
                     "account_id_key": acct_key,
@@ -320,13 +319,12 @@ class ETradeClient:
                                 "error": str(e),
                             })
             except Exception as e:
-                err = str(e)
-                if _is_empty_response(err):
+                if _is_empty_response(e):
                     continue
                 out.errors.append({
                     "account_id_key": acct_key,
                     "context": "transactions_fetch",
-                    "error": err,
+                    "error": str(e),
                 })
         return out
 
@@ -359,10 +357,34 @@ class ETradeClient:
         return out
 
 
-def _is_empty_response(err: str) -> bool:
-    """E*TRADE returns 204 No Content or empty bodies for accounts with
-    no positions/transactions — not an error, just an empty result."""
+def _is_empty_response(err: Exception | str) -> bool:
+    """Return True when the error represents "account exists but has no
+    positions/transactions" (HTTP 204) vs an actual failure.
+
+    Prefer to dispatch on the underlying exception type — pyetrade raises
+    `requests.HTTPError` carrying the response, and an empty-body JSON
+    response surfaces as `json.JSONDecodeError` / `ValueError`. We fall
+    back to substring matching on the stringified message only when
+    neither shape is available (defensive — would only fire on a
+    re-wrapped exception).
+    """
+    if isinstance(err, Exception):
+        # requests.HTTPError carries the response; check the status code.
+        resp = getattr(err, "response", None)
+        status = getattr(resp, "status_code", None) if resp is not None else None
+        if status == 204:
+            return True
+        # Empty body → json decode error. Bare json.JSONDecodeError is a
+        # ValueError subclass, but pyetrade sometimes raises a plain
+        # ValueError with "Expecting value" in the message.
+        if isinstance(err, ValueError) and "Expecting value" in str(err):
+            return True
+        # Fall through to message-substring check for re-wrapped errors.
+        err = str(err)
+    # Last-resort substring check. Anchored markers ("HTTP 204", "No
+    # positions for account", "No Transactions") are unlikely to collide
+    # with unrelated errors carrying bare "204" / "No" tokens.
     return any(
         marker in err
-        for marker in ("204", "No positions", "No Trans", "Expecting value")
+        for marker in ("HTTP 204", "No positions for", "No Transactions")
     )

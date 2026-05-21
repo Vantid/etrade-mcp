@@ -73,6 +73,14 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+
+    if args.since > args.until:
+        print(
+            f"[daily_sync] --since ({args.since}) must be <= --until ({args.until})",
+            file=sys.stderr,
+        )
+        return 1
+
     try:
         client = ETradeClient()
     except RuntimeError as e:
@@ -120,7 +128,10 @@ def main() -> int:
     output = json.dumps(payload, indent=2, default=str)
 
     if args.output:
+        # Output contains real transaction history — restrict to owner only.
+        args.output.touch(mode=0o600, exist_ok=True)
         args.output.write_text(output + "\n")
+        args.output.chmod(0o600)
         print(
             f"[daily_sync] wrote {len(rows)} rows + "
             f"{len(terminal_events)} terminal events to {args.output}",

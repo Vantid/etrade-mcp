@@ -1,3 +1,5 @@
+import getpass
+
 import pyetrade
 
 from etrade_mcp.keychain import get_credentials, set_consumer_credentials, set_oauth_tokens
@@ -21,7 +23,9 @@ def main():
 
     if consumer_key is None:
         consumer_key = input("Enter consumer key: ").strip()
-        consumer_secret = input("Enter consumer secret: ").strip()
+        # Mask the secret — it's keyboard-paste-friendly (no echo) so
+        # shoulder-surfing and terminal scrollback both miss it.
+        consumer_secret = getpass.getpass("Enter consumer secret: ").strip()
 
     set_consumer_credentials(consumer_key, consumer_secret)
 

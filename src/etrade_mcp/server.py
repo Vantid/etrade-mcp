@@ -93,31 +93,31 @@ def get_quote(symbols: list[str]) -> dict:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
-def get_holdings_for_import() -> dict:
-    """Current holdings shaped as WealthWatcher import rows.
-
-    Returns one row per position (stock / option) in the schema expected by
-    WealthWatcher's `import_brokerage_transactions` MCP tool. Use this for
-    initial portfolio import or full-resync. Rows include:
-      - `type`: "stock" / "etf" / "option"
-      - `symbol`, `name`, `quantity`, `price` (per-share / per-contract premium)
-      - `tradeType`: "buy" for long positions, "sell" for short (sell-to-open)
-      - `snapshotShares`: broker-reported current share count (holdings-as-truth)
-      - For options: `optionType`, `strikePrice`, `expirationDate`,
-        `underlyingTicker`, `osiKey`, `contractMultiplier`, `iv` (when available)
-
-    Skips zero-quantity positions. Errors per row are surfaced separately.
-
-    Returns: {rows: [...], errors: [...]}
-    """
+def _build_holdings_for_import() -> dict:
+    """Implementation of `get_holdings_for_import`. Pulled out so tools
+    can compose without going through the FastMCP decorator wrapping."""
     positions = ETradeClient().get_all_positions()
     rows: list[dict] = []
+    skipped: list[dict] = []
     errors: list[dict] = list(positions.errors)
     for pos in positions.rows:
         try:
             row = map_position_to_import_row(pos)
-            if row is not None:
+            if row is None:
+                quantity = pos.get("quantity")
+                if quantity is None or quantity == 0:
+                    skipped.append({
+                        "account_id_key": pos.get("account_id_key"),
+                        "symbol": pos.get("symbol"),
+                        "reason": "zero quantity (closed position)",
+                    })
+                else:
+                    skipped.append({
+                        "account_id_key": pos.get("account_id_key"),
+                        "symbol": pos.get("symbol"),
+                        "reason": f"unsupported securityType: {pos.get('securityType')}",
+                    })
+            else:
                 rows.append(row)
         except Exception as e:
             errors.append({
@@ -126,31 +126,16 @@ def get_holdings_for_import() -> dict:
                 "context": "position_mapping",
                 "error": str(e),
             })
-    return {"rows": rows, "errors": errors}
+    return {"rows": rows, "skipped": skipped, "errors": errors}
 
 
-@mcp.tool()
-def get_transactions_for_import(
-    start_date: str | None = None,
-    end_date: str | None = None,
+def _build_transactions_for_import(
+    sd: date | None,
+    ed: date | None,
 ) -> dict:
-    """Transactions shaped as WealthWatcher import rows + terminal events.
-
-    Splits the response into two streams:
-      - `rows`: buy/sell transactions ready for
-        `import_brokerage_transactions` (shape matches WealthWatcher's
-        schema; tradeType auto-mapped from E*TRADE's transactionType).
-      - `terminal_events`: option expirations / assignments / exercises
-        — these should NOT go through `import_brokerage_transactions`;
-        route them to `update_asset({details: {status: "expired" | "assigned"
-        | "exercised"}})` instead, per WealthWatcher's modeling rule.
-
-    Dates in YYYY-MM-DD. Defaults to YTD.
-
-    Returns: {rows: [...], terminal_events: [...], errors: [...]}
-    """
-    sd = date.fromisoformat(start_date) if start_date else None
-    ed = date.fromisoformat(end_date) if end_date else None
+    """Implementation of `get_transactions_for_import` /
+    `get_daily_changes`. Pulled out so tools can compose without going
+    through the FastMCP decorator wrapping."""
     txns = ETradeClient().get_all_transactions(start_date=sd, end_date=ed)
 
     rows: list[dict] = []
@@ -176,6 +161,55 @@ def get_transactions_for_import(
 
 
 @mcp.tool()
+def get_holdings_for_import() -> dict:
+    """Current holdings shaped as WealthWatcher import rows.
+
+    Returns one row per position (stock / mutual_fund / bond / option) in
+    the schema expected by WealthWatcher's `import_brokerage_transactions`
+    MCP tool. Use this for initial portfolio import or full-resync. Rows
+    include:
+      - `type`: "stock" / "mutual_fund" / "bond" / "option"
+      - `symbol`, `name`, `quantity`, `price` (per-share / per-contract premium)
+      - `tradeType`: "buy" for long positions, "sell" for short (sell-to-open)
+      - `snapshotShares`: broker-reported current share count (holdings-as-truth)
+      - `exchange`: from E*TRADE's Complete.exchange (NYSE / NASDAQ / ARCA…)
+      - For options: `optionType`, `strikePrice`, `expirationDate`,
+        `underlyingTicker`, `osiKey`, `contractMultiplier`, `iv` (when available)
+
+    Closed positions (quantity=0) and unsupported security types are
+    surfaced in `skipped` so the LLM/user can see what didn't make it.
+
+    Returns: {rows: [...], skipped: [...], errors: [...]}
+    """
+    return _build_holdings_for_import()
+
+
+@mcp.tool()
+def get_transactions_for_import(
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> dict:
+    """Transactions shaped as WealthWatcher import rows + terminal events.
+
+    Splits the response into two streams:
+      - `rows`: buy/sell transactions ready for
+        `import_brokerage_transactions` (shape matches WealthWatcher's
+        schema; tradeType auto-mapped from E*TRADE's transactionType).
+      - `terminal_events`: option expirations / assignments / exercises
+        — these should NOT go through `import_brokerage_transactions`;
+        route them to `update_asset({details: {status: "expired" | "assigned"
+        | "exercised"}})` instead, per WealthWatcher's modeling rule.
+
+    Dates in YYYY-MM-DD. Defaults to YTD.
+
+    Returns: {rows: [...], terminal_events: [...], errors: [...]}
+    """
+    sd = date.fromisoformat(start_date) if start_date else None
+    ed = date.fromisoformat(end_date) if end_date else None
+    return _build_transactions_for_import(sd, ed)
+
+
+@mcp.tool()
 def get_daily_changes(since: str) -> dict:
     """Incremental sync: new transactions + terminal events since timestamp.
 
@@ -186,7 +220,7 @@ def get_daily_changes(since: str) -> dict:
 
     Returns: {rows: [...], terminal_events: [...], errors: [...]}
     """
-    return get_transactions_for_import(start_date=since, end_date=None)
+    return _build_transactions_for_import(date.fromisoformat(since), None)
 
 
 def main() -> None:

@@ -161,6 +161,9 @@ class CompleteBlock(BaseModel, frozen=True):
     ask: float | None = None
     previousClose: float | None = None
     currency: str | None = None
+    exchange: str | None = None
+    """Listing exchange (NYSE, NASDAQ, ARCA, …). Surfaced so the
+    mapper doesn't have to hardcode 'NYSE' for every position."""
 
 
 class EtradePosition(AccountTagged, ProductMixin, frozen=True):

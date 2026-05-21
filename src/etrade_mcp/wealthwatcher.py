@@ -63,17 +63,28 @@ def map_position_to_import_row(pos: dict) -> dict | None:
     account_name = pos.get("account_name") or pos.get("account_id_key") or ""
     date_acquired = _iso_date(pos.get("date_acquired"))
 
-    if sec_type == "EQ":
-        return _map_stock_position(pos, symbol, account_name, quantity, date_acquired)
-    if sec_type == "OPTN":
+    asset_type = _SECURITY_TYPE_TO_ASSET_TYPE.get(sec_type or "")
+    if asset_type == "option":
         return _map_option_position(pos, symbol, account_name, quantity, date_acquired)
-    # MF, BOND, INDX, MMF — pass through as stock-like (broker's per-share
-    # price = NAV / quote, schema accepts these).
-    if sec_type in {"MF", "MMF", "BOND", "INDX"}:
+    if asset_type is not None:
         return _map_stock_position(
-            pos, symbol, account_name, quantity, date_acquired, asset_type="stock"
+            pos, symbol, account_name, quantity, date_acquired, asset_type=asset_type,
         )
     return None
+
+
+# E*TRADE securityType → WealthWatcher asset type.
+# Money-market funds (MMF) and indices (INDX) map to "stock" because WW's
+# share-based importer handles them identically; MF maps to mutual_fund;
+# BOND maps to bond.
+_SECURITY_TYPE_TO_ASSET_TYPE: dict[str, str] = {
+    "EQ": "stock",
+    "OPTN": "option",
+    "MF": "mutual_fund",
+    "MMF": "stock",
+    "BOND": "bond",
+    "INDX": "stock",
+}
 
 
 def _map_stock_position(
@@ -102,7 +113,7 @@ def _map_stock_position(
         "tradeType": "sell" if is_short else "buy",
         "quantity": abs_qty,
         "price": price,
-        "exchange": "NYSE",
+        "exchange": pos.get("exchange") or "NYSE",
         "currency": pos.get("currency") or "USD",
         "snapshotShares": abs_qty,
         "account": account_name,
@@ -188,7 +199,10 @@ def map_transaction_to_import_row(txn: dict) -> dict | None:
             "contractMultiplier": 100,
         })
     else:
-        base["type"] = "stock"
+        # Transactions don't carry an exchange field — fall back to NYSE
+        # (E*TRADE-listed symbols are almost always NYSE/NASDAQ; the
+        # importer normalizes either way).
+        base["type"] = _SECURITY_TYPE_TO_ASSET_TYPE.get(sec_type or "", "stock")
         base["exchange"] = "NYSE"
 
     return base

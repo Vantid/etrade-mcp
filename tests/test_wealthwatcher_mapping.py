@@ -129,6 +129,62 @@ def test_unknown_security_type_skipped():
     assert row is None
 
 
+def test_mutual_fund_maps_to_mutual_fund_type():
+    """MF positions now preserve their type instead of being flattened to 'stock'."""
+    row = map_position_to_import_row({
+        "securityType": "MF",
+        "symbol": "VTSAX",
+        "quantity": 100,
+        "price_paid": 110.50,
+        "market_value": 11000,
+        "account_name": "Brokerage-1",
+    })
+    assert row is not None
+    assert row["type"] == "mutual_fund"
+
+
+def test_bond_maps_to_bond_type():
+    row = map_position_to_import_row({
+        "securityType": "BOND",
+        "symbol": "T-BILL-26",
+        "quantity": 10,
+        "price_paid": 95.50,
+        "market_value": 960,
+        "account_name": "X",
+    })
+    assert row is not None
+    assert row["type"] == "bond"
+
+
+def test_exchange_comes_from_complete_block_not_hardcoded():
+    """M2 fix: stock mapper should propagate Complete.exchange instead of
+    forcing every row to NYSE. E*TRADE returns the actual listing exchange
+    (NASDAQ, ARCA, etc.) in the Complete block."""
+    row = map_position_to_import_row({
+        "securityType": "EQ",
+        "symbol": "AAPL",
+        "quantity": 50,
+        "price_paid": 200,
+        "market_value": 10000,
+        "exchange": "NASDAQ",
+        "account_name": "Brokerage-1",
+    })
+    assert row is not None
+    assert row["exchange"] == "NASDAQ"
+
+
+def test_exchange_falls_back_to_NYSE_when_missing():
+    row = map_position_to_import_row({
+        "securityType": "EQ",
+        "symbol": "BR",
+        "quantity": 10,
+        "price_paid": 20.70,
+        "market_value": 207,
+        "account_name": "X",
+    })
+    assert row["exchange"] == "NYSE"
+
+
 # ---------------------------------------------------------------------------
 # map_transaction_to_import_row
 # ---------------------------------------------------------------------------
