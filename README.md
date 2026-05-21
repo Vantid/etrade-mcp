@@ -92,6 +92,95 @@ LLM:    [calls etrade.get_transactions_for_import]
         update_asset with status="expired"/"exercised".
 ```
 
+## Daily cron sync
+
+You can run a daily sync from cron, but there's one constraint to know:
+**E\*TRADE access tokens expire at midnight US Eastern every day**, and
+re-authentication requires a browser PIN dance that cron can't do
+unattended. You'll need to run `uv run etrade-auth` once per day
+manually (typically in the morning) — then cron can drive the actual
+sync for the rest of the day.
+
+A second, lower-tier limit: tokens go *idle* after 2 hours of no calls.
+That's fully automatable — see the keepalive script below.
+
+### `scripts/daily_sync.py` — sync transactions
+
+Fetches transactions for a date range and prints a JSON envelope
+(`{rows, terminal_events, errors}`) ready to feed into WealthWatcher's
+`import_brokerage_transactions` MCP tool.
+
+```bash
+# Default — yesterday's transactions to stdout
+python scripts/daily_sync.py
+
+# Custom window, write to a file
+python scripts/daily_sync.py --since 2026-05-15 --until 2026-05-21 \
+    --output /tmp/etrade-sync.json
+
+# Hand off to Claude Code for the WealthWatcher import:
+python scripts/daily_sync.py | \
+    claude --print "Import this E*TRADE data into WealthWatcher."
+```
+
+Bypasses the MCP protocol entirely — no LLM in the hot path. Returns
+exit code 2 if any row failed to parse (you can wire that into cron
+mail for monitoring).
+
+### `scripts/keepalive.py` — keep the token active
+
+Calls `renew_access_token` to bump the 2-hour idle timer. Doesn't
+extend the daily hard expiry; just stops the token from going dormant
+between cron runs.
+
+```bash
+python scripts/keepalive.py
+```
+
+### Example cron schedule (Linux)
+
+```cron
+# Keepalive every 90 min during market hours (Mon-Fri, 06:00–17:00 PT)
+0,30 6-17 * * 1-5  /path/to/.venv/bin/python /path/to/etrade-mcp/scripts/keepalive.py >> /var/log/etrade-keepalive.log 2>&1
+
+# Daily sync at 18:30 PT (after market close)
+30 18 * * 1-5      /path/to/.venv/bin/python /path/to/etrade-mcp/scripts/daily_sync.py --output /var/log/etrade-sync-$(date +\%F).json
+```
+
+### Example launchd plist (macOS)
+
+Save as `~/Library/LaunchAgents/com.vantid.etrade-sync.plist` and
+load with `launchctl load`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.vantid.etrade-sync</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/path/to/.venv/bin/python</string>
+        <string>/path/to/etrade-mcp/scripts/daily_sync.py</string>
+        <string>--output</string>
+        <string>/Users/you/Library/Logs/etrade-sync.json</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>18</integer>
+        <key>Minute</key><integer>30</integer>
+    </dict>
+    <key>StandardErrorPath</key><string>/Users/you/Library/Logs/etrade-sync.err</string>
+</dict>
+</plist>
+```
+
+### When the daily re-auth bites
+
+If your cron starts failing with `oauth_problem=token_rejected`, your
+overnight token expired — open a terminal, run `uv run etrade-auth`,
+complete the browser flow, and cron will pick up again on its next
+scheduled run.
+
 ## Sandbox mode
 
 To point at E\*TRADE's sandbox API (`apisb.etrade.com`) instead of
