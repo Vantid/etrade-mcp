@@ -1,8 +1,22 @@
 [project]
 name = "etrade-mcp"
-version = "0.1.0"
-description = "E*TRADE MCP server for Claude Desktop/Code"
+version = "0.2.0"
+description = "E*TRADE MCP server for Claude Desktop / Claude Code / any MCP client. Exposes positions, lots, transactions, balances, quotes — plus tools shaped for WealthWatcher's import schema."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Vantid" }]
 requires-python = ">=3.11"
+keywords = ["mcp", "etrade", "brokerage", "claude", "llm", "wealthwatcher"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
 dependencies = [
     "mcp[cli]",
     "pyetrade>=2.1.1",
@@ -11,9 +25,33 @@ dependencies = [
     "keyring>=25.0.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
 [project.scripts]
 etrade-auth = "etrade_mcp.auth_cli:main"
+etrade-mcp = "etrade_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/Vantid/etrade-mcp"
+Repository = "https://github.com/Vantid/etrade-mcp"
+Issues = "https://github.com/Vantid/etrade-mcp/issues"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
